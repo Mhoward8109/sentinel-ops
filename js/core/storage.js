@@ -1,5 +1,5 @@
 // js/core/storage.js
-import { SCHEMA_VERSION } from "./schema.js";
+import { SCHEMA_VERSION, validateSchema } from "./schema.js";
 
 const STORAGE_KEY = "sentinel_ops_data";
 
@@ -39,4 +39,9 @@ export function getAllData() {
 
 export function clearAllData() {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+export function replaceAllData(data) {
+  validateSchema(data);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
