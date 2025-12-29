@@ -1,12 +1,86 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentinel Ops v6.19.4 | Newark Security Operations</title>
+    <title>Sentinel Ops v6.21.1 | Newark Security Operations</title>
     
     <!--
+        v6.21.1 CHANGELOG (December 2025)
+        ==================================
+        
+        SUPERVISOR PORTAL:
+        - New field supervisor portal with PIN-based access
+        - Fixed bottom navigation bar (native app feel):
+          1. At a Glance - Multi-site status cards with issues first
+          2. Calendar - Coverage calendar across all sites
+          3. Write-Up - Create and view disciplinary write-ups
+        - At a Glance Tab:
+          - Summary stats: sites with issues, guards on duty, open slots
+          - Compact site cards with status indicators
+          - Issues automatically rise to top (UNMANNED/OPEN first)
+          - Tap card to expand inline post details
+        - Calendar Tab:
+          - Multi-site calendar view (4 weeks back + 1 week ahead)
+          - Day cells show open slot count badge
+          - Tap day for inline expansion with site-by-site breakdown
+        - Write-Up Tab:
+          - Create new write-ups with site/guard/date/infractions
+          - Write-ups stored in separate 'writeups' collection (append-only)
+          - View recent submissions filtered to current PIN
+          - Author tracked by PIN for accountability
+        - Access Logging:
+          - LOGIN, LOGOUT, VIEW_*, SUBMIT_WRITEUP actions logged
+          - Timestamp + PIN stored for audit trail
+        - Admin PIN Management:
+          - Separate from client portal PINs
+          - Each PIN grants all-site read access + write-up creation
+          - Available in Settings > Supervisor Portal
+          - Command Palette: "Manage Supervisor PINs"
+        
+        v6.20.0 CHANGELOG (December 2025)
+        ==================================
+        
+        CLIENT PORTAL "AT A GLANCE" LANDING:
+        - New default landing tab answering 3 questions fast:
+          1. Who is on duty now (per post)
+          2. Who is next
+          3. Where are the gaps across a 4-week window
+        - Hero Card: ON DUTY NOW
+          - Shows all posts with guard name, initials avatar, shift times
+          - UNMANNED state with high-contrast alert styling
+          - HANDOFF display when shifts overlap
+          - NOT PROVIDED for missing schedule data
+        - Next Up Block:
+          - Shows next scheduled guard per post
+          - TODAY/TOMORROW labels
+          - NO UPCOMING COVERAGE message when empty
+        - Coverage Calendar:
+          - 4 weeks back + current + forward weeks as data exists
+          - Visual day grid with state indicators (Covered/Open/Not Posted)
+          - Today highlighted with distinct border
+          - Click day for inline expansion showing post details
+          - Overnight shift handling with continuation notes
+        - Trust Signals:
+          - Last updated timestamp
+          - Coverage window date range
+          - DATA MAY BE STALE warning when appropriate
+        - Export/Print:
+          - Professional single-page report
+          - ON DUTY NOW, NEXT UP, and ±7 day calendar
+          - Opens print dialog or downloads HTML
+        - Access Logging:
+          - Logs LOGIN, VIEW_AT_A_GLANCE, EXPORT actions
+          - Timestamp, siteId, action stored locally
+          - Audit trail for dispute protection
+        
+        EXISTING TABS PRESERVED:
+        - Overview, Incidents, Coverage, Inspections, Communications
+        - All existing functionality intact
+        
         v6.19.4 CHANGELOG (December 2025)
         ==================================
         
@@ -5605,6 +5679,75 @@
             background: var(--color-surface-elevated);
         }
 
+        /* At a Glance - Hero Card */
+        .portal-at-a-glance .hero-post-row {
+            transition: transform 0.15s ease;
+        }
+
+        .portal-at-a-glance .hero-post-row:hover {
+            transform: translateX(4px);
+        }
+
+        .portal-at-a-glance .hero-unmanned {
+            animation: unmanned-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes unmanned-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+            50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+        }
+
+        /* At a Glance - Calendar */
+        .portal-at-a-glance .cal-day {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .portal-at-a-glance .cal-day:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1;
+        }
+
+        .portal-at-a-glance .cal-day:active {
+            transform: scale(0.98);
+        }
+
+        .portal-at-a-glance .cal-day-past {
+            opacity: 0.6;
+        }
+
+        /* Mobile responsiveness for At a Glance */
+        @media (max-width: 640px) {
+            .portal-at-a-glance .hero-post-row {
+                flex-wrap: wrap;
+                gap: var(--space-2);
+            }
+
+            .portal-at-a-glance .hero-post-row .avatar {
+                width: 40px;
+                height: 40px;
+                font-size: 0.875rem;
+            }
+
+            .portal-at-a-glance .cal-day {
+                min-height: 48px;
+                font-size: var(--font-size-xs);
+            }
+
+            .portal-at-a-glance .cal-grid {
+                gap: var(--space-1);
+            }
+
+            #cal-expanded-day {
+                padding: var(--space-3);
+            }
+
+            .portal-tab {
+                padding: var(--space-2) var(--space-2);
+                font-size: var(--font-size-sm);
+            }
+        }
+
         #portal-dashboard .stat-card-danger {
             border-color: var(--color-danger);
         }
@@ -5666,6 +5809,213 @@
             font-weight: var(--font-weight-semibold);
             text-transform: uppercase;
             letter-spacing: 0.05em;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           SUPERVISOR PORTAL MODE
+           ═══════════════════════════════════════════════════════════════════ */
+        
+        body.supervisor-portal-mode .sidebar {
+            display: none !important;
+        }
+
+        body.supervisor-portal-mode .main-content {
+            margin-left: 0 !important;
+        }
+
+        body.supervisor-portal-mode #ai-console-toggle-btn {
+            display: none !important;
+        }
+
+        body.supervisor-portal-mode .header-actions [id="settings-btn"],
+        body.supervisor-portal-mode .header-actions [id="help-btn"] {
+            display: none !important;
+        }
+
+        body.supervisor-portal-mode .header {
+            background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        }
+
+        body.supervisor-portal-mode .header-title::before {
+            content: "🛡️ ";
+        }
+
+        body.supervisor-portal-mode #home-btn {
+            display: none !important;
+        }
+
+        /* Supervisor Bottom Navigation */
+        .supervisor-bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--color-surface);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 var(--space-2);
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .supervisor-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: var(--space-2) var(--space-3);
+            background: none;
+            border: none;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            transition: all 0.15s ease;
+            min-width: 80px;
+        }
+
+        .supervisor-nav-item:hover {
+            background: var(--color-surface-elevated);
+            color: var(--color-text);
+        }
+
+        .supervisor-nav-item.active {
+            color: var(--color-primary);
+        }
+
+        .supervisor-nav-item.active svg {
+            stroke: var(--color-primary);
+        }
+
+        .supervisor-nav-item span {
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .supervisor-nav-item svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Supervisor Portal Site Cards */
+        .supervisor-site-card {
+            background: var(--color-surface-elevated);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            margin-bottom: var(--space-3);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: 1px solid var(--color-border);
+        }
+
+        .supervisor-site-card:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .supervisor-site-card.has-issues {
+            border-left: 4px solid var(--color-danger);
+        }
+
+        .supervisor-site-card.all-good {
+            border-left: 4px solid var(--color-success);
+        }
+
+        .supervisor-site-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-2);
+        }
+
+        .supervisor-site-card-title {
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-base);
+        }
+
+        .supervisor-site-card-meta {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-muted);
+        }
+
+        .supervisor-site-card-expanded {
+            margin-top: var(--space-3);
+            padding-top: var(--space-3);
+            border-top: 1px solid var(--color-border);
+        }
+
+        /* Write-up form styles */
+        .writeup-form-section {
+            background: var(--color-surface-elevated);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .writeup-form-section h4 {
+            margin-bottom: var(--space-3);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .writeup-infractions-list {
+            display: grid;
+            gap: var(--space-2);
+        }
+
+        .writeup-infraction-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2);
+            background: var(--color-surface);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .writeup-infraction-item:hover {
+            background: var(--color-surface-elevated);
+        }
+
+        .writeup-infraction-item.selected {
+            background: rgba(214, 158, 46, 0.15);
+            border: 1px solid var(--color-primary);
+        }
+
+        .writeup-submission-card {
+            background: var(--color-surface-elevated);
+            border-radius: var(--radius-md);
+            padding: var(--space-3);
+            margin-bottom: var(--space-2);
+            border-left: 3px solid var(--color-primary);
+        }
+
+        /* Mobile adjustments for supervisor portal */
+        @media (max-width: 640px) {
+            .supervisor-bottom-nav {
+                height: 56px;
+            }
+
+            .supervisor-nav-item {
+                min-width: 60px;
+                padding: var(--space-1) var(--space-2);
+            }
+
+            .supervisor-nav-item svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            .supervisor-nav-item span {
+                font-size: 10px;
+            }
+
+            #supervisor-portal-content {
+                padding-bottom: 70px;
+            }
         }
 
         .fatigue-guard-info {
@@ -8703,8 +9053,49 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </section>
+
+                        <!-- Supervisor Portal Configuration -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Supervisor Portal</h3>
+                                <span class="badge badge-warning">Field Ops</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-sm text-muted mb-4">Configure portal access for field supervisors. Read-only access to all sites plus write-up creation.</p>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Supervisor PINs</label>
+                                    <p class="text-xs text-muted mb-2">Each PIN grants read access to all sites and write-up creation.</p>
+                                    <div id="supervisor-pins-list" style="display: grid; gap: var(--space-2); margin-bottom: var(--space-3);">
+                                        <!-- Dynamically populated -->
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm" onclick="SupervisorPortalModule.openPinManager()">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                        </svg>
+                                        Manage Supervisor PINs
+                                    </button>
+                                </div>
+
+                                <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+                                    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                                        <button class="btn btn-primary" onclick="SupervisorPortalModule.launchPortal()">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                            </svg>
+                                            Launch Supervisor Portal
+                                        </button>
+                                        <button class="btn btn-secondary" onclick="SupervisorPortalModule.openAdminWriteUpsList()">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                            </svg>
+                                            View Submitted Write-Ups
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-muted mt-2">Opens supervisor portal. Share with field supervisors after setting up PIN access.</p>
+                                </div>
+                            </div>
+                        </div>
 
                 <!-- Client Portal Section (Hidden by default, shown via portal mode) -->
                 <section class="page-section" id="section-portal" aria-label="Client Portal">
@@ -8740,11 +9131,17 @@
                             </div>
                             <div class="toolbar-right">
                                 <span class="text-sm text-muted" id="portal-last-updated"></span>
-                                <button class="btn btn-secondary btn-sm" onclick="ClientPortalModule.refresh()">
+                                <button class="btn btn-secondary btn-sm" onclick="ClientPortalModule.refresh()" title="Refresh data">
                                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                                     </svg>
                                     Refresh
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="ClientPortalModule.exportReport()" title="Export report">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                    </svg>
+                                    Export
                                 </button>
                                 <button class="btn btn-ghost btn-sm" onclick="ClientPortalModule.logout()" title="Exit Portal">
                                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8763,8 +9160,9 @@
                         <!-- Portal Tabs -->
                         <div class="card">
                             <div class="card-header" style="border-bottom: 1px solid var(--color-border);">
-                                <div style="display: flex; gap: var(--space-1);">
-                                    <button class="btn btn-ghost portal-tab active" data-tab="overview" onclick="ClientPortalModule.switchTab('overview')">Overview</button>
+                                <div style="display: flex; gap: var(--space-1); flex-wrap: wrap;">
+                                    <button class="btn btn-ghost portal-tab active" data-tab="at-a-glance" onclick="ClientPortalModule.switchTab('at-a-glance')">At a Glance</button>
+                                    <button class="btn btn-ghost portal-tab" data-tab="overview" onclick="ClientPortalModule.switchTab('overview')">Overview</button>
                                     <button class="btn btn-ghost portal-tab" data-tab="incidents" onclick="ClientPortalModule.switchTab('incidents')">Incidents</button>
                                     <button class="btn btn-ghost portal-tab" data-tab="coverage" onclick="ClientPortalModule.switchTab('coverage')">Coverage</button>
                                     <button class="btn btn-ghost portal-tab" data-tab="inspections" onclick="ClientPortalModule.switchTab('inspections')">Inspections</button>
@@ -8775,6 +9173,82 @@
                                 <!-- Tab content rendered here -->
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                <!-- Supervisor Portal Section (Hidden by default, shown via supervisor-portal-mode) -->
+                <section class="page-section" id="section-supervisor-portal" aria-label="Supervisor Portal">
+                    <div id="supervisor-portal-login" style="max-width: 400px; margin: 60px auto;">
+                        <div class="card">
+                            <div class="card-body" style="padding: var(--space-6); text-align: center;">
+                                <div style="font-size: 3rem; margin-bottom: var(--space-4);">🛡️</div>
+                                <h2 style="font-size: var(--font-size-xl); margin-bottom: var(--space-2);">Supervisor Portal</h2>
+                                <p class="text-muted mb-4">Newark Security Operations</p>
+                                
+                                <div class="form-group" style="text-align: left;">
+                                    <label class="form-label">Supervisor PIN</label>
+                                    <input type="password" class="form-input" id="supervisor-pin-input" placeholder="Enter your 6-digit PIN" maxlength="6" style="text-align: center; font-size: var(--font-size-lg); letter-spacing: 0.5em;">
+                                </div>
+                                
+                                <button class="btn btn-primary" style="width: 100%; margin-top: var(--space-3);" onclick="SupervisorPortalModule.authenticate()">
+                                    Access Portal
+                                </button>
+                                
+                                <p class="text-xs text-muted mt-4">Supervisor access only. Contact operations manager for credentials.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="supervisor-portal-dashboard" style="display: none;">
+                        <!-- Supervisor Portal Header -->
+                        <div class="toolbar" style="margin-bottom: var(--space-4);">
+                            <div class="toolbar-left">
+                                <h2 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 0;">
+                                    🛡️ Supervisor Portal
+                                </h2>
+                                <span class="badge badge-warning" style="margin-left: var(--space-2);">Field Ops</span>
+                            </div>
+                            <div class="toolbar-right">
+                                <span class="text-sm text-muted" id="supervisor-last-updated"></span>
+                                <button class="btn btn-secondary btn-sm" onclick="SupervisorPortalModule.refresh()" title="Refresh data">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.logout()" title="Exit Portal">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Supervisor Portal Content Area -->
+                        <div id="supervisor-portal-content" style="padding-bottom: 80px;">
+                            <!-- Content rendered by JS based on active tab -->
+                        </div>
+
+                        <!-- Fixed Bottom Navigation -->
+                        <nav class="supervisor-bottom-nav" id="supervisor-bottom-nav">
+                            <button class="supervisor-nav-item active" data-tab="glance" onclick="SupervisorPortalModule.switchTab('glance')">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span>At a Glance</span>
+                            </button>
+                            <button class="supervisor-nav-item" data-tab="calendar" onclick="SupervisorPortalModule.switchTab('calendar')">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>Calendar</span>
+                            </button>
+                            <button class="supervisor-nav-item" data-tab="writeup" onclick="SupervisorPortalModule.switchTab('writeup')">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span>Write-Up</span>
+                            </button>
+                        </nav>
                     </div>
                 </section>
             </div>
@@ -9210,7 +9684,7 @@ Available commands:
         // ═══════════════════════════════════════════════════════════════════════
         // APP VERSION — Single source of truth for version number
         // ═══════════════════════════════════════════════════════════════════════
-        const APP_VERSION = '6.19.2';
+        const APP_VERSION = '6.21.1';
         const APP_NAME = 'Sentinel Ops';
         const APP_FULL_NAME = `${APP_NAME} v${APP_VERSION}`;
 
@@ -9485,6 +9959,7 @@ Available commands:
                 { id: 'nav-settings', title: 'Go to Settings', desc: 'System configuration', action: () => Router.navigate('settings'), category: 'Navigation', icon: '⚙️' },
                 { id: 'nav-exports', title: 'Go to Export Center', desc: 'Reports, data exports, backups', action: () => Router.navigate('exports'), category: 'Navigation', icon: '📤' },
                 { id: 'nav-portal', title: 'Launch Client Portal', desc: 'Read-only client access', action: () => ClientPortalModule.launchPortal(), category: 'Navigation', icon: '🏢' },
+                { id: 'nav-supervisor-portal', title: 'Launch Supervisor Portal', desc: 'Field supervisor access with write-ups', action: () => SupervisorPortalModule.launchPortal(), category: 'Navigation', icon: '🛡️' },
 
                 // Quick Actions
                 { id: 'act-new-shift', title: 'Add New Shift', desc: 'Add a shift to the schedule', action: () => { Router.navigate('scheduler'); setTimeout(() => SchedulerModule.openAddShiftModal(), 150); }, category: 'Quick Actions', icon: '📅' },
@@ -9509,6 +9984,8 @@ Available commands:
                 { id: 'tool-weekly-report', title: 'Weekly Ops Report', desc: 'Generate weekly summary report', action: () => ExportModule.generateWeeklyReport(), category: 'Tools', icon: '📊' },
                 { id: 'tool-export-center', title: 'Open Export Center', desc: 'Custom reports and data exports', action: () => Router.navigate('exports'), category: 'Tools', icon: '📤' },
                 { id: 'tool-portal-pins', title: 'Manage Portal PINs', desc: 'Configure client access PINs', action: () => ClientPortalModule.openPinManager(), category: 'Tools', icon: '🔐' },
+                { id: 'tool-supervisor-pins', title: 'Manage Supervisor PINs', desc: 'Configure field supervisor access PINs', action: () => SupervisorPortalModule.openPinManager(), category: 'Tools', icon: '🛡️' },
+                { id: 'tool-view-writeups', title: 'View Submitted Write-Ups', desc: 'See all write-ups from supervisors', action: () => SupervisorPortalModule.openAdminWriteUpsList(), category: 'Tools', icon: '📝' },
                 { id: 'tool-import', title: 'Import CSV', desc: 'Import data from CSV file', action: () => { Router.navigate('settings'); setTimeout(() => document.getElementById('csv-file-input')?.click(), 150); }, category: 'Tools', icon: '📥' },
                 { id: 'tool-theme', title: 'Toggle Theme', desc: 'Switch between dark and light mode', action: () => { const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; SettingsModule.setTheme(t); }, category: 'Tools', icon: '🌓' },
                 { id: 'tool-privacy', title: 'Toggle Privacy Mode', desc: 'Blur sensitive info (names, phones, addresses)', action: () => document.getElementById('privacy-toggle')?.click(), category: 'Tools', icon: '👁️' },
@@ -17385,6 +17862,7 @@ RESPONSE GUIDELINES:
                 'commslog': { title: 'Communications Log', section: 'section-commslog' },
                 'exports': { title: 'Export Center', section: 'section-exports' },
                 'portal': { title: 'Client Portal', section: 'section-portal' },
+                'supervisor-portal': { title: 'Supervisor Portal', section: 'section-supervisor-portal' },
                 'calloffs': { title: 'Call-off Log', section: 'section-calloffs' },
                 'sites': { title: 'Sites', section: 'section-sites' },
                 'contacts': { title: 'Contacts', section: 'section-contacts' },
@@ -17410,7 +17888,8 @@ RESPONSE GUIDELINES:
                     ];
                     if (adminRoutes.includes(route)) {
                         console.log('[SENTINEL] Blocked admin route in portal mode:', route);
-                        route = 'portal';
+                        // Redirect to appropriate portal based on which mode is active
+                        route = RoleContext.isSupervisorPortal() ? 'supervisor-portal' : 'portal';
                     }
                 }
 
@@ -17419,6 +17898,13 @@ RESPONSE GUIDELINES:
                     document.body.classList.remove('portal-mode');
                     ClientPortalModule.isAuthenticated = false;
                     ClientPortalModule.currentSiteId = null;
+                }
+
+                // If leaving supervisor portal mode, remove supervisor-portal-mode class
+                if (this.currentRoute === 'supervisor-portal' && route !== 'supervisor-portal') {
+                    document.body.classList.remove('supervisor-portal-mode');
+                    SupervisorPortalModule.isAuthenticated = false;
+                    SupervisorPortalModule.currentPin = null;
                 }
 
                 this.currentRoute = route;
@@ -17462,6 +17948,7 @@ RESPONSE GUIDELINES:
                     case 'commslog': CommsLogModule.render(); break;
                     case 'exports': ExportModule.render(); break;
                     case 'portal': ClientPortalModule.render(); break;
+                    case 'supervisor-portal': SupervisorPortalModule.render(); break;
                     case 'calloffs': CalloffsModule.render(); break;
                     case 'sites': SitesModule.render(); break;
                     case 'contacts': ContactsModule.render(); break;
@@ -26987,11 +27474,18 @@ RESPONSE GUIDELINES:
         };
 
         // ═══════════════════════════════════════════════════════════════════════
-        // ROLE CONTEXT — Admin vs Client Portal
+        // ROLE CONTEXT — Admin vs Client Portal vs Supervisor Portal
         // ═══════════════════════════════════════════════════════════════════════
         const RoleContext = {
             isPortalMode() {
+                return document.body.classList.contains('portal-mode') || 
+                       document.body.classList.contains('supervisor-portal-mode');
+            },
+            isClientPortal() {
                 return document.body.classList.contains('portal-mode');
+            },
+            isSupervisorPortal() {
+                return document.body.classList.contains('supervisor-portal-mode');
             },
             isAdmin() {
                 return !this.isPortalMode();
@@ -27149,6 +27643,8 @@ RESPONSE GUIDELINES:
 
                 this.currentSiteId = siteId;
                 this.isAuthenticated = true;
+                this.expandedDays = new Set(); // Reset expanded days on new login
+                this.logAccess('LOGIN');
                 this.renderDashboard();
                 UI.toast('Welcome', 'Portal access granted.', 'success');
             },
@@ -27185,7 +27681,7 @@ RESPONSE GUIDELINES:
                 document.getElementById('portal-last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
 
                 this.renderStats();
-                this.switchTab('overview');
+                this.switchTab('at-a-glance');
             },
 
             renderStats: function () {
@@ -27234,6 +27730,9 @@ RESPONSE GUIDELINES:
                 const content = document.getElementById('portal-tab-content');
 
                 switch (tab) {
+                    case 'at-a-glance':
+                        content.innerHTML = this.renderAtAGlanceTab();
+                        break;
                     case 'overview':
                         content.innerHTML = this.renderOverviewTab();
                         break;
@@ -27500,18 +27999,2062 @@ RESPONSE GUIDELINES:
 
             refresh: function () {
                 this.renderStats();
-                this.switchTab(document.querySelector('.portal-tab.active')?.dataset.tab || 'overview');
+                this.switchTab(document.querySelector('.portal-tab.active')?.dataset.tab || 'at-a-glance');
                 document.getElementById('portal-last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
                 UI.toast('Refreshed', 'Portal data updated.', 'info');
             },
 
-            exportReport: function () {
-                const site = DataStore.getSites().find(s => s.id === this.currentSiteId);
-                if (!site) return;
+            // ═══════════════════════════════════════════════════════════════
+            // AT A GLANCE — Read Model & Components
+            // ═══════════════════════════════════════════════════════════════
 
-                // Use existing export functionality
-                document.getElementById('client-report-site').value = this.currentSiteId;
-                ExportModule.runClientReport();
+            // Expanded calendar days (for inline expansion)
+            expandedDays: new Set(),
+
+            // Access log storage key
+            ACCESS_LOG_KEY: 'sentinel_portal_access_log',
+
+            // Generate read model for the portal
+            generateReadModel: function () {
+                const site = DataStore.getSites().find(s => s.id === this.currentSiteId);
+                if (!site) return null;
+
+                const now = new Date();
+                const guards = DataStore.getGuards();
+                
+                // Get all available weeks of schedule data
+                const schedules = DataStore.getSchedules ? DataStore.getSchedules() : {};
+                const allWeekKeys = Object.keys(schedules).sort();
+                
+                // Find schedule date range
+                let minDate = null;
+                let maxDate = null;
+                let lastImportDate = null;
+                
+                allWeekKeys.forEach(weekKey => {
+                    const shifts = schedules[weekKey] || [];
+                    shifts.forEach(s => {
+                        if (s.siteId === this.currentSiteId && s.date) {
+                            const d = new Date(s.date + 'T00:00:00');
+                            if (!minDate || d < minDate) minDate = d;
+                            if (!maxDate || d > maxDate) maxDate = d;
+                        }
+                    });
+                });
+
+                // Determine posts from site shiftPatterns or derive from schedule
+                const posts = this.derivePostsForSite(site, schedules);
+
+                // Build onDutyNow for each post
+                const onDutyNow = posts.map(post => {
+                    const currentShift = this.findCurrentShift(post, now, schedules);
+                    return {
+                        postId: post.id,
+                        postName: post.label,
+                        guardName: currentShift?.guardName || null,
+                        guardInitials: currentShift?.guardInitials || null,
+                        shiftStart: currentShift?.startTime || null,
+                        shiftEnd: currentShift?.endTime || null,
+                        state: currentShift ? (currentShift.guardId ? 'MANNED' : 'UNMANNED') : 'NOT_PROVIDED',
+                        isHandoff: currentShift?.isHandoff || false,
+                        handoffFrom: currentShift?.handoffFrom || null,
+                        handoffTo: currentShift?.handoffTo || null
+                    };
+                });
+
+                // Build nextUp for each post
+                const nextUp = posts.map(post => {
+                    const nextShift = this.findNextShift(post, now, schedules);
+                    return {
+                        postId: post.id,
+                        postName: post.label,
+                        guardName: nextShift?.guardName || null,
+                        shiftStart: nextShift?.startTime || null,
+                        shiftEnd: nextShift?.endTime || null,
+                        dayLabel: nextShift?.dayLabel || null,
+                        state: nextShift ? (nextShift.guardId ? 'COVERED' : 'OPEN') : 'NOT_PROVIDED'
+                    };
+                }).filter(n => n.guardName || n.state === 'OPEN' || n.state === 'NOT_PROVIDED');
+
+                // Build calendar days (4 weeks back + current + forward)
+                const calendarDays = this.buildCalendarDays(posts, now, schedules, minDate, maxDate);
+
+                // Staleness check
+                const isStale = this.checkStaleness(maxDate, lastImportDate, now);
+
+                return {
+                    siteId: site.id,
+                    siteName: site.name,
+                    siteAddress: site.address || '',
+                    now: now.toISOString(),
+                    onDutyNow,
+                    nextUp,
+                    calendarDays,
+                    coverageWindow: {
+                        start: minDate ? Utils.toISODate(minDate) : null,
+                        end: maxDate ? Utils.toISODate(maxDate) : null
+                    },
+                    lastImport: lastImportDate || new Date().toISOString(),
+                    isStale,
+                    posts
+                };
+            },
+
+            // Derive posts for a site from shiftPatterns or schedule data
+            derivePostsForSite: function (site, schedules) {
+                // First try site.shiftPatterns
+                if (site.shiftPatterns && site.shiftPatterns.length > 0) {
+                    return site.shiftPatterns.map((p, idx) => ({
+                        id: `${site.id}::${p.label || 'post-' + idx}`,
+                        label: p.label || `${p.startTime || '0800'}-${p.endTime || '1600'}`,
+                        startTime: p.startTime || '08:00',
+                        endTime: p.endTime || '16:00'
+                    }));
+                }
+
+                // Fallback: derive from actual schedule data
+                const postLabels = new Set();
+                Object.values(schedules).forEach(shifts => {
+                    shifts.forEach(s => {
+                        if (s.siteId === site.id) {
+                            const label = s.shiftLabel || `${s.startTime || '0800'}-${s.endTime || '1600'}`;
+                            postLabels.add(label);
+                        }
+                    });
+                });
+
+                if (postLabels.size === 0) {
+                    // Default single post
+                    return [{ id: `${site.id}::default`, label: 'Day Shift', startTime: '08:00', endTime: '16:00' }];
+                }
+
+                return Array.from(postLabels).map(label => ({
+                    id: `${site.id}::${label}`,
+                    label: label,
+                    startTime: label.split('-')[0] || '08:00',
+                    endTime: label.split('-')[1] || '16:00'
+                }));
+            },
+
+            // Find current shift for a post
+            findCurrentShift: function (post, now, schedules) {
+                const todayStr = Utils.toISODate(now);
+                const yesterdayStr = Utils.toISODate(new Date(now.getTime() - 86400000));
+                const currentMins = now.getHours() * 60 + now.getMinutes();
+                const guards = DataStore.getGuards();
+                const siteId = this.currentSiteId;
+
+                // Helper to parse time to minutes
+                const toMins = (t) => {
+                    if (!t) return 0;
+                    const [h, m] = t.replace(/[^0-9:]/g, '').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+
+                // Get shifts for today and yesterday (for overnight)
+                const allShifts = [];
+                Object.values(schedules).forEach(weekShifts => {
+                    weekShifts.forEach(s => {
+                        if (s.siteId === siteId && (s.date === todayStr || s.date === yesterdayStr)) {
+                            const label = s.shiftLabel || `${s.startTime || ''}-${s.endTime || ''}`;
+                            if (label === post.label || post.label === 'Day Shift') {
+                                allShifts.push(s);
+                            }
+                        }
+                    });
+                });
+
+                // Find shift that contains current time
+                for (const shift of allShifts) {
+                    let startMins = toMins(shift.startTime);
+                    let endMins = toMins(shift.endTime);
+                    const isOvernight = endMins <= startMins;
+                    
+                    let isActive = false;
+                    if (shift.date === todayStr) {
+                        if (isOvernight) {
+                            // Overnight starting today: active from start until midnight
+                            isActive = currentMins >= startMins;
+                        } else {
+                            // Normal day shift
+                            isActive = currentMins >= startMins && currentMins < endMins;
+                        }
+                    } else if (shift.date === yesterdayStr && isOvernight) {
+                        // Overnight from yesterday: active from midnight until end
+                        isActive = currentMins < endMins;
+                    }
+
+                    if (isActive) {
+                        const guard = shift.guardId ? guards.find(g => g.id === shift.guardId) : null;
+                        return {
+                            guardId: shift.guardId,
+                            guardName: guard?.name || null,
+                            guardInitials: guard ? this.getInitials(guard.name) : null,
+                            startTime: shift.startTime || post.startTime,
+                            endTime: shift.endTime || post.endTime,
+                            isHandoff: false
+                        };
+                    }
+                }
+
+                // Check for handoff overlap
+                const overlappingShifts = allShifts.filter(s => {
+                    if (s.date !== todayStr) return false;
+                    let startMins = toMins(s.startTime);
+                    let endMins = toMins(s.endTime);
+                    if (endMins <= startMins) endMins += 24 * 60;
+                    // Within 30 min of shift change
+                    return Math.abs(currentMins - startMins) <= 30 || Math.abs(currentMins - endMins) <= 30;
+                });
+
+                if (overlappingShifts.length >= 2) {
+                    const sorted = overlappingShifts.sort((a, b) => toMins(a.startTime) - toMins(b.startTime));
+                    const fromGuard = sorted[0].guardId ? guards.find(g => g.id === sorted[0].guardId) : null;
+                    const toGuard = sorted[1].guardId ? guards.find(g => g.id === sorted[1].guardId) : null;
+                    return {
+                        guardId: sorted[1].guardId || sorted[0].guardId,
+                        guardName: toGuard?.name || fromGuard?.name || null,
+                        guardInitials: toGuard ? this.getInitials(toGuard.name) : (fromGuard ? this.getInitials(fromGuard.name) : null),
+                        startTime: sorted[1].startTime || sorted[0].startTime,
+                        endTime: sorted[1].endTime || sorted[0].endTime,
+                        isHandoff: true,
+                        handoffFrom: fromGuard?.name || null,
+                        handoffTo: toGuard?.name || null
+                    };
+                }
+
+                return null;
+            },
+
+            // Find next shift for a post
+            findNextShift: function (post, now, schedules) {
+                const todayStr = Utils.toISODate(now);
+                const tomorrowStr = Utils.toISODate(new Date(now.getTime() + 86400000));
+                const currentMins = now.getHours() * 60 + now.getMinutes();
+                const guards = DataStore.getGuards();
+                const siteId = this.currentSiteId;
+
+                const toMins = (t) => {
+                    if (!t) return 0;
+                    const [h, m] = t.replace(/[^0-9:]/g, '').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+
+                // Collect future shifts
+                const futureShifts = [];
+                Object.values(schedules).forEach(weekShifts => {
+                    weekShifts.forEach(s => {
+                        if (s.siteId !== siteId) return;
+                        const label = s.shiftLabel || `${s.startTime || ''}-${s.endTime || ''}`;
+                        if (label !== post.label && post.label !== 'Day Shift') return;
+
+                        if (s.date === todayStr) {
+                            const startMins = toMins(s.startTime);
+                            if (startMins > currentMins) {
+                                futureShifts.push({ ...s, dayLabel: 'TODAY', sortKey: s.date + (s.startTime || '0000') });
+                            }
+                        } else if (s.date === tomorrowStr) {
+                            futureShifts.push({ ...s, dayLabel: 'TOMORROW', sortKey: s.date + (s.startTime || '0000') });
+                        } else if (s.date > tomorrowStr) {
+                            futureShifts.push({ ...s, dayLabel: null, sortKey: s.date + (s.startTime || '0000') });
+                        }
+                    });
+                });
+
+                futureShifts.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+                const next = futureShifts[0];
+
+                if (!next) return null;
+
+                const guard = next.guardId ? guards.find(g => g.id === next.guardId) : null;
+                return {
+                    guardId: next.guardId,
+                    guardName: guard?.name || null,
+                    startTime: next.startTime,
+                    endTime: next.endTime,
+                    dayLabel: next.dayLabel
+                };
+            },
+
+            // Build calendar days for display
+            buildCalendarDays: function (posts, now, schedules, minDate, maxDate) {
+                const days = [];
+                const today = new Date(now);
+                today.setHours(0, 0, 0, 0);
+
+                // 4 weeks back
+                const startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 28);
+
+                // Forward to maxDate or 1 week ahead
+                const endDate = maxDate ? new Date(Math.max(maxDate.getTime(), today.getTime() + 7 * 86400000)) : new Date(today.getTime() + 7 * 86400000);
+
+                const guards = DataStore.getGuards();
+                const siteId = this.currentSiteId;
+
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const dateStr = Utils.toISODate(d);
+                    const isToday = dateStr === Utils.toISODate(today);
+                    const isPast = d < today;
+                    const isFuture = d > today;
+
+                    // Check if date is within schedule coverage window
+                    const inCoverageWindow = minDate && maxDate && d >= minDate && d <= maxDate;
+
+                    // Get shifts for this day
+                    const dayShifts = [];
+                    Object.values(schedules).forEach(weekShifts => {
+                        weekShifts.forEach(s => {
+                            if (s.siteId === siteId && s.date === dateStr) {
+                                dayShifts.push(s);
+                            }
+                        });
+                    });
+
+                    // Build post coverage for the day
+                    const postsCoverage = posts.map(post => {
+                        const postShifts = dayShifts.filter(s => {
+                            const label = s.shiftLabel || `${s.startTime || ''}-${s.endTime || ''}`;
+                            return label === post.label || post.label === 'Day Shift';
+                        });
+
+                        if (!inCoverageWindow && postShifts.length === 0) {
+                            return {
+                                postId: post.id,
+                                postName: post.label,
+                                state: 'NOT_PROVIDED',
+                                shifts: []
+                            };
+                        }
+
+                        if (postShifts.length === 0) {
+                            return {
+                                postId: post.id,
+                                postName: post.label,
+                                state: 'OPEN',
+                                shifts: []
+                            };
+                        }
+
+                        const shifts = postShifts.map(s => {
+                            const guard = s.guardId ? guards.find(g => g.id === s.guardId) : null;
+                            return {
+                                guardName: guard?.name || null,
+                                guardInitials: guard ? this.getInitials(guard.name) : null,
+                                startTime: s.startTime,
+                                endTime: s.endTime,
+                                state: s.guardId ? 'COVERED' : 'OPEN'
+                            };
+                        });
+
+                        const hasOpen = shifts.some(s => s.state === 'OPEN');
+                        const allCovered = shifts.every(s => s.state === 'COVERED');
+
+                        return {
+                            postId: post.id,
+                            postName: post.label,
+                            state: hasOpen ? 'OPEN' : (allCovered ? 'COVERED' : 'NOT_PROVIDED'),
+                            shifts
+                        };
+                    });
+
+                    // Determine overall day state
+                    const hasOpen = postsCoverage.some(p => p.state === 'OPEN');
+                    const hasNotProvided = postsCoverage.some(p => p.state === 'NOT_PROVIDED');
+                    const allCovered = postsCoverage.every(p => p.state === 'COVERED');
+
+                    days.push({
+                        date: dateStr,
+                        dayOfWeek: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                        dayOfMonth: d.getDate(),
+                        month: d.toLocaleDateString('en-US', { month: 'short' }),
+                        isToday,
+                        isPast,
+                        isFuture,
+                        inCoverageWindow,
+                        state: hasOpen ? 'OPEN' : (allCovered ? 'COVERED' : 'NOT_PROVIDED'),
+                        posts: postsCoverage
+                    });
+                }
+
+                return days;
+            },
+
+            // Check if data is stale
+            checkStaleness: function (maxDate, lastImportDate, now) {
+                // Stale if: now > maxDate + 24h OR lastImport > 8 days ago
+                if (maxDate) {
+                    const maxDateTime = new Date(maxDate);
+                    maxDateTime.setHours(23, 59, 59);
+                    if (now.getTime() - maxDateTime.getTime() > 24 * 60 * 60 * 1000) {
+                        return true;
+                    }
+                }
+                // For now, we don't have lastImportDate tracked, so skip that check
+                return false;
+            },
+
+            // Get initials from name
+            getInitials: function (name) {
+                if (!name) return '??';
+                const parts = name.trim().split(/\s+/);
+                if (parts.length >= 2) {
+                    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                }
+                return name.substring(0, 2).toUpperCase();
+            },
+
+            // Log access for audit trail
+            logAccess: function (action = 'VIEW') {
+                try {
+                    const log = JSON.parse(localStorage.getItem(this.ACCESS_LOG_KEY) || '[]');
+                    log.push({
+                        timestamp: new Date().toISOString(),
+                        siteId: this.currentSiteId,
+                        action: action,
+                        userAgent: navigator.userAgent.substring(0, 100)
+                    });
+                    // Keep last 1000 entries
+                    if (log.length > 1000) log.splice(0, log.length - 1000);
+                    localStorage.setItem(this.ACCESS_LOG_KEY, JSON.stringify(log));
+                } catch (e) {
+                    console.warn('Failed to log portal access:', e);
+                }
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // AT A GLANCE — Render Components
+            // ═══════════════════════════════════════════════════════════════
+
+            renderAtAGlanceTab: function () {
+                // Log access
+                this.logAccess('VIEW_AT_A_GLANCE');
+
+                const model = this.generateReadModel();
+                if (!model) {
+                    return '<p class="text-muted" style="padding: var(--space-4);">Unable to load site data.</p>';
+                }
+
+                // Skeleton loader for brief moment
+                const trustLine = this.renderTrustLine(model);
+                const heroCard = this.renderHeroCard(model);
+                const nextUpBlock = this.renderNextUpBlock(model);
+                const calendar = this.renderCoverageCalendar(model);
+
+                return `
+                    <div class="portal-at-a-glance">
+                        ${trustLine}
+                        ${heroCard}
+                        ${nextUpBlock}
+                        ${calendar}
+                    </div>
+                `;
+            },
+
+            renderTrustLine: function (model) {
+                const lastUpdated = new Date().toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                    hour: 'numeric', minute: '2-digit'
+                });
+
+                const coverageRange = model.coverageWindow.start && model.coverageWindow.end
+                    ? `${model.coverageWindow.start} to ${model.coverageWindow.end}`
+                    : 'No schedule data';
+
+                const staleWarning = model.isStale 
+                    ? '<span class="badge badge-warning" style="margin-left: var(--space-2);">DATA MAY BE STALE</span>' 
+                    : '';
+
+                return `
+                    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: var(--space-2) 0; margin-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-muted);">
+                        <span>Last updated: ${lastUpdated} ${staleWarning}</span>
+                        <span>Coverage window: ${coverageRange}</span>
+                    </div>
+                `;
+            },
+
+            renderHeroCard: function (model) {
+                if (model.onDutyNow.length === 0) {
+                    return `
+                        <div class="card" style="margin-bottom: var(--space-5);">
+                            <div class="card-header">
+                                <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <span style="font-size: 1.25rem;">🛡️</span>
+                                    ON DUTY NOW
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">No posts configured for this site.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const rows = model.onDutyNow.map(post => {
+                    if (post.state === 'NOT_PROVIDED') {
+                        return `
+                            <div class="hero-post-row" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--color-surface-elevated); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                                <div class="avatar" style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-border); display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--color-text-muted);">
+                                    --
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: var(--font-weight-semibold); color: var(--color-text-muted);">SCHEDULE NOT POSTED</div>
+                                    <div class="text-sm text-muted">${Utils.escapeHtml(post.postName)}</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (post.state === 'UNMANNED') {
+                        return `
+                            <div class="hero-post-row hero-unmanned" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: rgba(239, 68, 68, 0.15); border: 2px solid var(--color-danger); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                                <div class="avatar" style="width: 48px; height: 48px; border-radius: 50%; background: var(--color-danger); display: flex; align-items: center; justify-content: center; font-weight: 600; color: white;">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: var(--font-weight-bold); color: var(--color-danger);">UNMANNED</div>
+                                    <div class="text-sm">${Utils.escapeHtml(post.postName)} · ${post.shiftStart || '??:??'} – ${post.shiftEnd || '??:??'}</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // MANNED state
+                    const handoffBadge = post.isHandoff 
+                        ? `<span class="badge badge-info" style="margin-left: var(--space-2);">HANDOFF: ${Utils.escapeHtml(post.handoffFrom || '?')} → ${Utils.escapeHtml(post.handoffTo || '?')}</span>` 
+                        : '';
+
+                    return `
+                        <div class="hero-post-row" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--color-surface-elevated); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                            <div class="avatar" style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover)); display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--color-bg);">
+                                ${post.guardInitials || '??'}
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: var(--font-weight-semibold); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1);">
+                                    ${Utils.escapeHtml(post.guardName || 'Unknown')}
+                                    ${handoffBadge}
+                                </div>
+                                <div class="text-sm text-muted">${Utils.escapeHtml(post.postName)} · ${post.shiftStart || '??:??'} – ${post.shiftEnd || '??:??'}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="badge badge-success">ON POST</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="card" style="margin-bottom: var(--space-5);">
+                        <div class="card-header">
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span style="font-size: 1.25rem;">🛡️</span>
+                                ON DUTY NOW
+                            </h3>
+                        </div>
+                        <div class="card-body" style="padding: var(--space-3);">
+                            ${rows}
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderNextUpBlock: function (model) {
+                if (model.nextUp.length === 0 || model.nextUp.every(n => n.state === 'NOT_PROVIDED' && !n.guardName)) {
+                    return `
+                        <div class="card" style="margin-bottom: var(--space-5);">
+                            <div class="card-header">
+                                <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <span style="font-size: 1.25rem;">⏭️</span>
+                                    NEXT UP
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted" style="text-align: center; padding: var(--space-3);">NO UPCOMING COVERAGE SCHEDULED</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const rows = model.nextUp.filter(n => n.guardName || n.state === 'OPEN').map(next => {
+                    const dayBadge = next.dayLabel 
+                        ? `<span class="badge ${next.dayLabel === 'TODAY' ? 'badge-success' : 'badge-info'}">${next.dayLabel}</span>` 
+                        : '';
+
+                    if (next.state === 'OPEN') {
+                        return `
+                            <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--font-weight-medium); color: var(--color-danger);">OPEN SLOT</div>
+                                    <div class="text-sm text-muted">${Utils.escapeHtml(next.postName)} · ${next.shiftStart || '??:??'} – ${next.shiftEnd || '??:??'}</div>
+                                </div>
+                                ${dayBadge}
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--color-surface-elevated); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
+                            <div style="flex: 1;">
+                                <div style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(next.guardName)}</div>
+                                <div class="text-sm text-muted">${Utils.escapeHtml(next.postName)} · ${next.shiftStart || '??:??'} – ${next.shiftEnd || '??:??'}</div>
+                            </div>
+                            ${dayBadge}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="card" style="margin-bottom: var(--space-5);">
+                        <div class="card-header">
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span style="font-size: 1.25rem;">⏭️</span>
+                                NEXT UP
+                            </h3>
+                        </div>
+                        <div class="card-body" style="padding: var(--space-3);">
+                            ${rows}
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderCoverageCalendar: function (model) {
+                // Group days by week
+                const weeks = [];
+                let currentWeek = [];
+                
+                model.calendarDays.forEach((day, idx) => {
+                    currentWeek.push(day);
+                    if (currentWeek.length === 7 || idx === model.calendarDays.length - 1) {
+                        weeks.push(currentWeek);
+                        currentWeek = [];
+                    }
+                });
+
+                // Fill incomplete first week with empty slots
+                if (weeks.length > 0 && weeks[0].length < 7) {
+                    const firstDay = new Date(weeks[0][0].date + 'T00:00:00');
+                    const dayOfWeek = firstDay.getDay();
+                    const empties = [];
+                    for (let i = 0; i < dayOfWeek; i++) {
+                        empties.push({ empty: true });
+                    }
+                    weeks[0] = [...empties, ...weeks[0]];
+                }
+
+                const calendarGrid = weeks.map(week => {
+                    const dayCells = week.map(day => {
+                        if (day.empty) {
+                            return '<div class="cal-day cal-day-empty" style="aspect-ratio: 1; min-height: 44px;"></div>';
+                        }
+
+                        const stateClass = day.state === 'OPEN' ? 'cal-day-open' : (day.state === 'COVERED' ? 'cal-day-covered' : 'cal-day-notprovided');
+                        const todayClass = day.isToday ? 'cal-day-today' : '';
+                        const pastClass = day.isPast ? 'cal-day-past' : '';
+                        const isExpanded = this.expandedDays.has(day.date);
+
+                        let indicator = '';
+                        if (day.state === 'OPEN') {
+                            indicator = '<span style="position:absolute;top:2px;right:2px;width:8px;height:8px;background:var(--color-danger);border-radius:50%;"></span>';
+                        } else if (day.state === 'NOT_PROVIDED') {
+                            indicator = '<span style="position:absolute;top:2px;right:2px;font-size:8px;color:var(--color-text-muted);">?</span>';
+                        }
+
+                        return `
+                            <div class="cal-day ${stateClass} ${todayClass} ${pastClass}" 
+                                 style="position:relative; aspect-ratio: 1; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                                        background: ${day.state === 'OPEN' ? 'rgba(239,68,68,0.15)' : (day.state === 'COVERED' ? 'rgba(34,197,94,0.1)' : 'var(--color-surface-elevated)')};
+                                        border: ${day.isToday ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'};
+                                        border-radius: var(--radius-sm); cursor: pointer; transition: transform 0.1s;"
+                                 onclick="ClientPortalModule.toggleCalendarDay('${day.date}')"
+                                 title="${day.dayOfWeek} ${day.month} ${day.dayOfMonth}">
+                                ${indicator}
+                                <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">${day.dayOfWeek}</span>
+                                <span style="font-weight: var(--font-weight-semibold); ${day.isToday ? 'color: var(--color-primary);' : ''}">${day.dayOfMonth}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `<div class="cal-week" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1);">${dayCells}</div>`;
+                }).join('');
+
+                // Expanded day details
+                const expandedDayDetails = this.renderExpandedDayDetails(model);
+
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span style="font-size: 1.25rem;">📅</span>
+                                COVERAGE CALENDAR
+                            </h3>
+                            <div class="text-xs text-muted">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; margin-right: var(--space-3);"><span style="width:10px;height:10px;background:rgba(34,197,94,0.3);border-radius:2px;"></span> Covered</span>
+                                <span style="display: inline-flex; align-items: center; gap: 4px; margin-right: var(--space-3);"><span style="width:10px;height:10px;background:rgba(239,68,68,0.3);border-radius:2px;"></span> Open</span>
+                                <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width:10px;height:10px;background:var(--color-surface-elevated);border:1px solid var(--color-border);border-radius:2px;"></span> Not Posted</span>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding: var(--space-3);">
+                            <div class="cal-header" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1); margin-bottom: var(--space-2); text-align: center; font-size: var(--font-size-xs); color: var(--color-text-muted); font-weight: var(--font-weight-medium);">
+                                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                            </div>
+                            <div class="cal-grid" style="display: grid; gap: var(--space-2);">
+                                ${calendarGrid}
+                            </div>
+                            ${expandedDayDetails}
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderExpandedDayDetails: function (model) {
+                if (this.expandedDays.size === 0) return '';
+
+                const expandedDate = Array.from(this.expandedDays)[this.expandedDays.size - 1]; // Most recently expanded
+                const day = model.calendarDays.find(d => d.date === expandedDate);
+                if (!day) return '';
+
+                const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                });
+
+                // Handle overnight continuation
+                const overnightNote = this.getOvernightContinuation(day, model);
+
+                const postsHtml = day.posts.map(post => {
+                    if (post.state === 'NOT_PROVIDED') {
+                        return `
+                            <div style="padding: var(--space-2); background: var(--color-surface); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
+                                <div style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(post.postName)}</div>
+                                <div class="text-sm text-muted">Schedule not posted</div>
+                            </div>
+                        `;
+                    }
+
+                    if (post.shifts.length === 0) {
+                        return `
+                            <div style="padding: var(--space-2); background: rgba(239,68,68,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2); border-left: 3px solid var(--color-danger);">
+                                <div style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(post.postName)}</div>
+                                <div class="text-sm" style="color: var(--color-danger);">OPEN SLOT</div>
+                            </div>
+                        `;
+                    }
+
+                    const shiftsHtml = post.shifts.map(s => {
+                        if (s.state === 'OPEN') {
+                            return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-1) 0; color: var(--color-danger);">
+                                    <span>${s.startTime || '??:??'} – ${s.endTime || '??:??'}</span>
+                                    <span class="badge badge-danger">OPEN</span>
+                                </div>
+                            `;
+                        }
+                        return `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-1) 0;">
+                                <span>${s.startTime || '??:??'} – ${s.endTime || '??:??'}</span>
+                                <span>${Utils.escapeHtml(s.guardName || 'Unknown')}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <div style="padding: var(--space-2); background: var(--color-surface-elevated); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
+                            <div style="font-weight: var(--font-weight-medium); margin-bottom: var(--space-1);">${Utils.escapeHtml(post.postName)}</div>
+                            ${shiftsHtml}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div id="cal-expanded-day" style="margin-top: var(--space-4); padding: var(--space-4); background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                            <h4 style="margin: 0; font-weight: var(--font-weight-semibold);">${dateLabel}</h4>
+                            <button class="btn btn-ghost btn-sm" onclick="ClientPortalModule.toggleCalendarDay('${day.date}')" title="Close">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        ${overnightNote}
+                        ${postsHtml}
+                    </div>
+                `;
+            },
+
+            getOvernightContinuation: function (day, model) {
+                // Check if there's an overnight shift from previous day continuing into this day
+                const prevDateStr = Utils.toISODate(new Date(new Date(day.date + 'T00:00:00').getTime() - 86400000));
+                const prevDay = model.calendarDays.find(d => d.date === prevDateStr);
+                
+                if (!prevDay) return '';
+
+                // Check for overnight shifts (end time < start time)
+                const overnightShifts = [];
+                prevDay.posts.forEach(post => {
+                    post.shifts.forEach(shift => {
+                        if (shift.startTime && shift.endTime) {
+                            const startMins = parseInt(shift.startTime.split(':')[0]) * 60;
+                            const endMins = parseInt(shift.endTime.split(':')[0]) * 60;
+                            if (endMins < startMins && shift.guardName) {
+                                overnightShifts.push({
+                                    guardName: shift.guardName,
+                                    endTime: shift.endTime,
+                                    postName: post.postName
+                                });
+                            }
+                        }
+                    });
+                });
+
+                if (overnightShifts.length === 0) return '';
+
+                return `
+                    <div style="padding: var(--space-2); background: rgba(59, 130, 246, 0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-3); font-size: var(--font-size-sm);">
+                        <strong>Continuing from prior day:</strong>
+                        ${overnightShifts.map(s => `${Utils.escapeHtml(s.guardName)} (${s.postName}) until ${s.endTime}`).join(', ')}
+                    </div>
+                `;
+            },
+
+            toggleCalendarDay: function (dateStr) {
+                if (this.expandedDays.has(dateStr)) {
+                    this.expandedDays.delete(dateStr);
+                } else {
+                    this.expandedDays.clear(); // Only one expanded at a time
+                    this.expandedDays.add(dateStr);
+                }
+                // Re-render just the calendar section
+                const model = this.generateReadModel();
+                const calendarCard = document.querySelector('.portal-at-a-glance .card:last-child');
+                if (calendarCard && model) {
+                    const temp = document.createElement('div');
+                    temp.innerHTML = this.renderCoverageCalendar(model);
+                    calendarCard.replaceWith(temp.firstElementChild);
+                }
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // EXPORT FUNCTIONALITY
+            // ═══════════════════════════════════════════════════════════════
+
+            exportReport: function () {
+                this.logAccess('EXPORT');
+                
+                const model = this.generateReadModel();
+                if (!model) {
+                    UI.toast('Error', 'Unable to generate report', 'error');
+                    return;
+                }
+
+                const now = new Date();
+                const reportDate = now.toLocaleDateString('en-US', {
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                });
+                const reportTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+                // Build ON DUTY section
+                const onDutyRows = model.onDutyNow.map(post => {
+                    if (post.state === 'NOT_PROVIDED') {
+                        return `<tr><td>${Utils.escapeHtml(post.postName)}</td><td colspan="2" style="color:#888;">Schedule not posted</td></tr>`;
+                    }
+                    if (post.state === 'UNMANNED') {
+                        return `<tr style="background:#fee2e2;"><td>${Utils.escapeHtml(post.postName)}</td><td><strong style="color:#dc2626;">UNMANNED</strong></td><td>${post.shiftStart || ''} – ${post.shiftEnd || ''}</td></tr>`;
+                    }
+                    return `<tr><td>${Utils.escapeHtml(post.postName)}</td><td>${Utils.escapeHtml(post.guardName || 'Unknown')}</td><td>${post.shiftStart || ''} – ${post.shiftEnd || ''}</td></tr>`;
+                }).join('');
+
+                // Build NEXT UP section
+                const nextUpRows = model.nextUp.filter(n => n.guardName || n.state === 'OPEN').map(next => {
+                    if (next.state === 'OPEN') {
+                        return `<tr style="background:#fee2e2;"><td>${Utils.escapeHtml(next.postName)}</td><td><strong style="color:#dc2626;">OPEN</strong></td><td>${next.shiftStart || ''} – ${next.shiftEnd || ''}</td><td>${next.dayLabel || ''}</td></tr>`;
+                    }
+                    return `<tr><td>${Utils.escapeHtml(next.postName)}</td><td>${Utils.escapeHtml(next.guardName || '')}</td><td>${next.shiftStart || ''} – ${next.shiftEnd || ''}</td><td>${next.dayLabel || ''}</td></tr>`;
+                }).join('') || '<tr><td colspan="4" style="text-align:center;color:#888;">No upcoming coverage scheduled</td></tr>';
+
+                // Build calendar summary (just past week + current + next week)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const weekAgo = new Date(today.getTime() - 7 * 86400000);
+                const weekAhead = new Date(today.getTime() + 7 * 86400000);
+                
+                const relevantDays = model.calendarDays.filter(d => {
+                    const dayDate = new Date(d.date + 'T00:00:00');
+                    return dayDate >= weekAgo && dayDate <= weekAhead;
+                });
+
+                const calendarRows = relevantDays.map(day => {
+                    const stateLabel = day.state === 'OPEN' ? '<span style="color:#dc2626;font-weight:bold;">OPEN</span>' : 
+                                       (day.state === 'COVERED' ? '<span style="color:#16a34a;">Covered</span>' : '<span style="color:#888;">Not Posted</span>');
+                    const todayMark = day.isToday ? ' <strong>(TODAY)</strong>' : '';
+                    return `<tr><td>${day.dayOfWeek} ${day.month} ${day.dayOfMonth}${todayMark}</td><td>${stateLabel}</td></tr>`;
+                }).join('');
+
+                const reportHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Coverage Report - ${Utils.escapeHtml(model.siteName)}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #1a1a1a; }
+        h1 { font-size: 24px; margin-bottom: 4px; }
+        h2 { font-size: 18px; margin-top: 24px; margin-bottom: 12px; border-bottom: 2px solid #e5e5e5; padding-bottom: 4px; }
+        .meta { color: #666; font-size: 14px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #e5e5e5; padding: 8px 12px; text-align: left; }
+        th { background: #f5f5f5; font-weight: 600; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; font-size: 12px; color: #888; }
+        @media print { body { padding: 0; } }
+    </style>
+</head>
+<body>
+    <h1>🛡️ ${Utils.escapeHtml(model.siteName)}</h1>
+    <p class="meta">Coverage Report · Generated ${reportDate} at ${reportTime}</p>
+    
+    <h2>ON DUTY NOW</h2>
+    <table>
+        <thead><tr><th>Post</th><th>Guard</th><th>Shift</th></tr></thead>
+        <tbody>${onDutyRows}</tbody>
+    </table>
+    
+    <h2>NEXT UP</h2>
+    <table>
+        <thead><tr><th>Post</th><th>Guard</th><th>Shift</th><th>When</th></tr></thead>
+        <tbody>${nextUpRows}</tbody>
+    </table>
+    
+    <h2>COVERAGE CALENDAR (±7 Days)</h2>
+    <table>
+        <thead><tr><th>Date</th><th>Status</th></tr></thead>
+        <tbody>${calendarRows}</tbody>
+    </table>
+    
+    <div class="footer">
+        <p>Coverage window: ${model.coverageWindow.start || 'N/A'} to ${model.coverageWindow.end || 'N/A'}</p>
+        <p>Generated by Newark Security Operations · Sentinel Ops</p>
+    </div>
+</body>
+</html>
+                `;
+
+                // Open in new window for printing
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(reportHtml);
+                    printWindow.document.close();
+                    setTimeout(() => printWindow.print(), 250);
+                } else {
+                    // Fallback: download as HTML
+                    Utils.downloadFile(reportHtml, `coverage-report-${model.siteName.replace(/\s+/g, '-')}-${Utils.toISODate(now)}.html`, 'text/html');
+                }
+            }
+        };
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // SUPERVISOR PORTAL MODULE — Field supervisor read-only access + write-ups
+        // ═══════════════════════════════════════════════════════════════════════
+        const SupervisorPortalModule = {
+            supervisorPins: {},
+            isAuthenticated: false,
+            currentPin: null,
+            expandedSites: new Set(),
+            expandedDays: new Set(),
+            currentTab: 'glance',
+
+            // Storage keys
+            PINS_KEY: 'sentinel_supervisor_pins',
+            WRITEUPS_KEY: 'sentinel_writeups',
+            ACCESS_LOG_KEY: 'sentinel_supervisor_access_log',
+
+            init: function () {
+                this.supervisorPins = JSON.parse(localStorage.getItem(this.PINS_KEY) || '{}');
+                
+                document.getElementById('supervisor-pin-input')?.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.authenticate();
+                });
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // PIN MANAGEMENT (Admin Side)
+            // ═══════════════════════════════════════════════════════════════
+
+            savePins: function () {
+                localStorage.setItem(this.PINS_KEY, JSON.stringify(this.supervisorPins));
+            },
+
+            openPinManager: function () {
+                const pins = Object.entries(this.supervisorPins);
+                
+                let content = `
+                    <p class="text-sm text-muted mb-4">Create 6-digit PINs for field supervisors. Each PIN grants read access to all sites plus write-up creation.</p>
+                    <div id="supervisor-pins-container" style="max-height: 300px; overflow-y: auto; margin-bottom: var(--space-4);">
+                `;
+
+                if (pins.length === 0) {
+                    content += '<p class="text-muted text-sm">No supervisor PINs configured.</p>';
+                } else {
+                    pins.forEach(([pin, data], idx) => {
+                        content += `
+                            <div class="form-group" style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: var(--font-weight-medium);">PIN: ${pin}</div>
+                                    <div class="text-xs text-muted">Created: ${new Date(data.createdAt).toLocaleDateString()}</div>
+                                </div>
+                                <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.removePin('${pin}')" title="Remove PIN" style="color: var(--color-danger);">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        `;
+                    });
+                }
+
+                content += `
+                    </div>
+                    <div style="display: flex; gap: var(--space-2); align-items: center;">
+                        <input type="text" class="form-input" id="new-supervisor-pin" placeholder="6-digit PIN" maxlength="6" pattern="[0-9]*" inputmode="numeric" style="width: 120px; text-align: center; letter-spacing: 0.3em;">
+                        <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.generateRandomPin()" title="Generate Random">🎲</button>
+                        <button class="btn btn-primary btn-sm" onclick="SupervisorPortalModule.addPin()">Add PIN</button>
+                    </div>
+                `;
+
+                UI.openModal('Manage Supervisor PINs', content, `
+                    <button class="btn btn-secondary" onclick="UI.closeModal()">Close</button>
+                `);
+            },
+
+            generateRandomPin: function () {
+                const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                const input = document.getElementById('new-supervisor-pin');
+                if (input) input.value = pin;
+            },
+
+            addPin: function () {
+                const input = document.getElementById('new-supervisor-pin');
+                const pin = input?.value.trim();
+
+                if (!pin || pin.length !== 6 || !/^\d+$/.test(pin)) {
+                    UI.toast('Invalid PIN', 'Please enter a 6-digit numeric PIN.', 'error');
+                    return;
+                }
+
+                if (this.supervisorPins[pin]) {
+                    UI.toast('Duplicate', 'This PIN already exists.', 'error');
+                    return;
+                }
+
+                this.supervisorPins[pin] = {
+                    createdAt: new Date().toISOString()
+                };
+                this.savePins();
+                this.updatePinsList();
+                UI.closeModal();
+                this.openPinManager(); // Refresh modal
+                UI.toast('PIN Added', 'Supervisor PIN has been created.', 'success');
+            },
+
+            removePin: function (pin) {
+                if (!confirm('Remove this supervisor PIN?')) return;
+                delete this.supervisorPins[pin];
+                this.savePins();
+                this.updatePinsList();
+                UI.closeModal();
+                this.openPinManager(); // Refresh modal
+                UI.toast('PIN Removed', 'Supervisor PIN has been deleted.', 'info');
+            },
+
+            updatePinsList: function () {
+                const container = document.getElementById('supervisor-pins-list');
+                if (!container) return;
+
+                const pins = Object.keys(this.supervisorPins);
+                if (pins.length === 0) {
+                    container.innerHTML = '<p class="text-sm text-muted">No supervisor PINs configured.</p>';
+                    return;
+                }
+
+                container.innerHTML = pins.map(pin => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2); background: var(--color-surface-elevated); border-radius: var(--radius-md);">
+                        <span class="text-sm">PIN: ••••${pin.slice(-2)}</span>
+                        <span class="badge badge-warning">Active</span>
+                    </div>
+                `).join('');
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // AUTHENTICATION
+            // ═══════════════════════════════════════════════════════════════
+
+            launchPortal: function () {
+                Router.navigate('supervisor-portal');
+            },
+
+            render: function () {
+                if (!this.isAuthenticated) {
+                    document.body.classList.remove('supervisor-portal-mode');
+                    document.getElementById('supervisor-portal-login').style.display = 'block';
+                    document.getElementById('supervisor-portal-dashboard').style.display = 'none';
+                    document.getElementById('supervisor-pin-input').value = '';
+                    document.getElementById('supervisor-pin-input').focus();
+                } else {
+                    this.renderDashboard();
+                }
+            },
+
+            authenticate: function () {
+                const pin = document.getElementById('supervisor-pin-input').value.trim();
+                
+                if (!pin || pin.length !== 6) {
+                    UI.toast('Invalid PIN', 'Please enter a 6-digit PIN.', 'error');
+                    return;
+                }
+
+                if (!this.supervisorPins[pin]) {
+                    UI.toast('Access Denied', 'Invalid supervisor PIN.', 'error');
+                    document.getElementById('supervisor-pin-input').value = '';
+                    return;
+                }
+
+                this.currentPin = pin;
+                this.isAuthenticated = true;
+                this.expandedSites = new Set();
+                this.expandedDays = new Set();
+                this.logAccess('LOGIN');
+                this.renderDashboard();
+                UI.toast('Welcome', 'Supervisor portal access granted.', 'success');
+            },
+
+            logout: function () {
+                this.logAccess('LOGOUT');
+                this.isAuthenticated = false;
+                this.currentPin = null;
+                document.body.classList.remove('supervisor-portal-mode');
+                Router.navigate('supervisor-portal');
+            },
+
+            logAccess: function (action) {
+                try {
+                    const log = JSON.parse(localStorage.getItem(this.ACCESS_LOG_KEY) || '[]');
+                    log.push({
+                        timestamp: new Date().toISOString(),
+                        pin: this.currentPin,
+                        action: action
+                    });
+                    if (log.length > 1000) log.splice(0, log.length - 1000);
+                    localStorage.setItem(this.ACCESS_LOG_KEY, JSON.stringify(log));
+                } catch (e) {
+                    console.warn('Failed to log supervisor access:', e);
+                }
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // DASHBOARD
+            // ═══════════════════════════════════════════════════════════════
+
+            renderDashboard: function () {
+                document.body.classList.add('supervisor-portal-mode');
+                document.getElementById('supervisor-portal-login').style.display = 'none';
+                document.getElementById('supervisor-portal-dashboard').style.display = 'block';
+                document.getElementById('supervisor-last-updated').textContent = new Date().toLocaleTimeString();
+                
+                this.switchTab(this.currentTab);
+            },
+
+            switchTab: function (tab) {
+                this.currentTab = tab;
+                
+                document.querySelectorAll('.supervisor-nav-item').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tab);
+                });
+
+                const content = document.getElementById('supervisor-portal-content');
+                this.logAccess('VIEW_' + tab.toUpperCase());
+
+                switch (tab) {
+                    case 'glance':
+                        content.innerHTML = this.renderGlanceTab();
+                        break;
+                    case 'calendar':
+                        content.innerHTML = this.renderCalendarTab();
+                        break;
+                    case 'writeup':
+                        content.innerHTML = this.renderWriteUpTab();
+                        break;
+                }
+            },
+
+            refresh: function () {
+                this.switchTab(this.currentTab);
+                document.getElementById('supervisor-last-updated').textContent = new Date().toLocaleTimeString();
+                UI.toast('Refreshed', 'Data updated.', 'info');
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // AT A GLANCE TAB — Multi-site summary
+            // ═══════════════════════════════════════════════════════════════
+
+            renderGlanceTab: function () {
+                const sites = DataStore.getSites().filter(s => s.status !== 'terminated');
+                const now = new Date();
+                
+                // Generate status for each site
+                const siteStatuses = sites.map(site => {
+                    const status = this.getSiteStatus(site, now);
+                    return { site, status };
+                });
+
+                // Sort: issues first, then by name
+                siteStatuses.sort((a, b) => {
+                    if (a.status.hasIssues !== b.status.hasIssues) {
+                        return a.status.hasIssues ? -1 : 1;
+                    }
+                    return a.site.name.localeCompare(b.site.name);
+                });
+
+                const sitesHtml = siteStatuses.map(({ site, status }) => {
+                    const isExpanded = this.expandedSites.has(site.id);
+                    const issueClass = status.hasIssues ? 'has-issues' : 'all-good';
+                    const statusBadge = status.hasIssues 
+                        ? `<span class="badge badge-danger">${status.issueCount} Issue${status.issueCount > 1 ? 's' : ''}</span>`
+                        : `<span class="badge badge-success">✓ Covered</span>`;
+
+                    let expandedContent = '';
+                    if (isExpanded) {
+                        expandedContent = `
+                            <div class="supervisor-site-card-expanded">
+                                ${status.posts.map(post => {
+                                    if (post.state === 'NOT_PROVIDED') {
+                                        return `
+                                            <div style="padding: var(--space-2); background: var(--color-surface); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <span style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(post.postName)}</span>
+                                                    <span class="text-muted text-sm">Not Posted</span>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }
+                                    if (post.state === 'UNMANNED') {
+                                        return `
+                                            <div style="padding: var(--space-2); background: rgba(239,68,68,0.1); border-radius: var(--radius-sm); margin-bottom: var(--space-2); border-left: 3px solid var(--color-danger);">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <span style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(post.postName)}</span>
+                                                    <span class="badge badge-danger">UNMANNED</span>
+                                                </div>
+                                                <div class="text-sm text-muted">${post.shiftStart || '??:??'} – ${post.shiftEnd || '??:??'}</div>
+                                            </div>
+                                        `;
+                                    }
+                                    return `
+                                        <div style="padding: var(--space-2); background: var(--color-surface); border-radius: var(--radius-sm); margin-bottom: var(--space-2);">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="font-weight: var(--font-weight-medium);">${Utils.escapeHtml(post.postName)}</span>
+                                                <span class="badge badge-success">On Post</span>
+                                            </div>
+                                            <div class="text-sm">${Utils.escapeHtml(post.guardName || 'Unknown')} · ${post.shiftStart || '??:??'} – ${post.shiftEnd || '??:??'}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div class="supervisor-site-card ${issueClass}" onclick="SupervisorPortalModule.toggleSite('${site.id}')">
+                            <div class="supervisor-site-card-header">
+                                <div>
+                                    <div class="supervisor-site-card-title">${Utils.escapeHtml(site.name)}</div>
+                                    <div class="supervisor-site-card-meta">${status.onDutyCount} on duty now</div>
+                                </div>
+                                ${statusBadge}
+                            </div>
+                            ${expandedContent}
+                        </div>
+                    `;
+                }).join('');
+
+                const summaryStats = this.getSummaryStats(siteStatuses);
+
+                return `
+                    <div style="margin-bottom: var(--space-4);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-3);">
+                            <div class="stat-card">
+                                <div class="stat-value">${summaryStats.sitesWithIssues}</div>
+                                <div class="stat-label">Sites with Issues</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${summaryStats.totalOnDuty}</div>
+                                <div class="stat-label">Guards On Duty</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${summaryStats.openSlots}</div>
+                                <div class="stat-label">Open Slots</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">All Sites</h3>
+                    <p class="text-sm text-muted mb-3">Tap a site to expand details. Sites with issues appear first.</p>
+                    
+                    ${sitesHtml}
+                `;
+            },
+
+            getSiteStatus: function (site, now) {
+                const schedules = DataStore.getSchedules ? DataStore.getSchedules() : {};
+                const guards = DataStore.getGuards();
+                const todayStr = Utils.toISODate(now);
+                const currentMins = now.getHours() * 60 + now.getMinutes();
+
+                const posts = [];
+                let onDutyCount = 0;
+                let issueCount = 0;
+
+                // Get posts from shiftPatterns or derive
+                const postDefs = site.shiftPatterns && site.shiftPatterns.length > 0
+                    ? site.shiftPatterns.map((p, idx) => ({
+                        id: `${site.id}::${p.label || 'post-' + idx}`,
+                        label: p.label || `${p.startTime || '0800'}-${p.endTime || '1600'}`,
+                        startTime: p.startTime || '08:00',
+                        endTime: p.endTime || '16:00'
+                    }))
+                    : [{ id: `${site.id}::default`, label: 'Day Shift', startTime: '08:00', endTime: '16:00' }];
+
+                const toMins = (t) => {
+                    if (!t) return 0;
+                    const [h, m] = t.replace(/[^0-9:]/g, '').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+
+                postDefs.forEach(post => {
+                    // Find today's shifts for this post
+                    let foundShift = null;
+                    Object.values(schedules).forEach(weekShifts => {
+                        weekShifts.forEach(s => {
+                            if (s.siteId !== site.id) return;
+                            if (s.date !== todayStr) return;
+                            
+                            const label = s.shiftLabel || `${s.startTime || ''}-${s.endTime || ''}`;
+                            if (label !== post.label && post.label !== 'Day Shift') return;
+
+                            let startMins = toMins(s.startTime);
+                            let endMins = toMins(s.endTime);
+                            const isOvernight = endMins <= startMins;
+                            
+                            let isActive = false;
+                            if (isOvernight) {
+                                isActive = currentMins >= startMins || currentMins < endMins;
+                            } else {
+                                isActive = currentMins >= startMins && currentMins < endMins;
+                            }
+
+                            if (isActive) {
+                                foundShift = s;
+                            }
+                        });
+                    });
+
+                    if (!foundShift) {
+                        posts.push({
+                            postName: post.label,
+                            state: 'NOT_PROVIDED',
+                            guardName: null,
+                            shiftStart: null,
+                            shiftEnd: null
+                        });
+                    } else if (!foundShift.guardId) {
+                        issueCount++;
+                        posts.push({
+                            postName: post.label,
+                            state: 'UNMANNED',
+                            guardName: null,
+                            shiftStart: foundShift.startTime,
+                            shiftEnd: foundShift.endTime
+                        });
+                    } else {
+                        const guard = guards.find(g => g.id === foundShift.guardId);
+                        onDutyCount++;
+                        posts.push({
+                            postName: post.label,
+                            state: 'MANNED',
+                            guardName: guard?.name || 'Unknown',
+                            shiftStart: foundShift.startTime,
+                            shiftEnd: foundShift.endTime
+                        });
+                    }
+                });
+
+                return {
+                    hasIssues: issueCount > 0,
+                    issueCount,
+                    onDutyCount,
+                    posts
+                };
+            },
+
+            getSummaryStats: function (siteStatuses) {
+                let sitesWithIssues = 0;
+                let totalOnDuty = 0;
+                let openSlots = 0;
+
+                siteStatuses.forEach(({ status }) => {
+                    if (status.hasIssues) sitesWithIssues++;
+                    totalOnDuty += status.onDutyCount;
+                    openSlots += status.issueCount;
+                });
+
+                return { sitesWithIssues, totalOnDuty, openSlots };
+            },
+
+            toggleSite: function (siteId) {
+                if (this.expandedSites.has(siteId)) {
+                    this.expandedSites.delete(siteId);
+                } else {
+                    this.expandedSites.add(siteId);
+                }
+                this.switchTab('glance');
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // CALENDAR TAB — Multi-site calendar
+            // ═══════════════════════════════════════════════════════════════
+
+            renderCalendarTab: function () {
+                const sites = DataStore.getSites().filter(s => s.status !== 'terminated');
+                const now = new Date();
+                const today = new Date(now);
+                today.setHours(0, 0, 0, 0);
+
+                // Build calendar days (4 weeks back + forward)
+                const calendarDays = this.buildMultiSiteCalendar(sites, today);
+
+                // Render calendar grid
+                const weeks = [];
+                let currentWeek = [];
+                
+                calendarDays.forEach((day, idx) => {
+                    currentWeek.push(day);
+                    if (currentWeek.length === 7 || idx === calendarDays.length - 1) {
+                        weeks.push(currentWeek);
+                        currentWeek = [];
+                    }
+                });
+
+                // Pad first week
+                if (weeks.length > 0 && weeks[0].length < 7) {
+                    const firstDay = new Date(weeks[0][0].date + 'T00:00:00');
+                    const dayOfWeek = firstDay.getDay();
+                    const empties = [];
+                    for (let i = 0; i < dayOfWeek; i++) {
+                        empties.push({ empty: true });
+                    }
+                    weeks[0] = [...empties, ...weeks[0]];
+                }
+
+                const calendarGrid = weeks.map(week => {
+                    const dayCells = week.map(day => {
+                        if (day.empty) {
+                            return '<div class="cal-day cal-day-empty" style="aspect-ratio: 1; min-height: 44px;"></div>';
+                        }
+
+                        const hasIssues = day.openCount > 0;
+                        const todayClass = day.isToday ? 'border: 2px solid var(--color-primary);' : 'border: 1px solid var(--color-border);';
+                        const bgColor = hasIssues ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)';
+
+                        let indicator = '';
+                        if (hasIssues) {
+                            indicator = `<span style="position:absolute;top:2px;right:2px;background:var(--color-danger);color:white;font-size:9px;padding:0 4px;border-radius:8px;">${day.openCount}</span>`;
+                        }
+
+                        return `
+                            <div class="cal-day" 
+                                 style="position:relative; aspect-ratio: 1; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+                                        background: ${bgColor}; ${todayClass} border-radius: var(--radius-sm); cursor: pointer; transition: transform 0.1s;"
+                                 onclick="SupervisorPortalModule.toggleCalendarDay('${day.date}')">
+                                ${indicator}
+                                <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">${day.dayOfWeek}</span>
+                                <span style="font-weight: var(--font-weight-semibold); ${day.isToday ? 'color: var(--color-primary);' : ''}">${day.dayOfMonth}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1);">${dayCells}</div>`;
+                }).join('');
+
+                // Expanded day details
+                const expandedDetails = this.renderExpandedCalendarDay(calendarDays);
+
+                return `
+                    <h3 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">Coverage Calendar</h3>
+                    <p class="text-sm text-muted mb-3">All sites combined. Numbers show open slots. Tap a day for details.</p>
+
+                    <div class="card" style="margin-bottom: var(--space-4);">
+                        <div class="card-body" style="padding: var(--space-3);">
+                            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1); margin-bottom: var(--space-2); text-align: center; font-size: var(--font-size-xs); color: var(--color-text-muted); font-weight: var(--font-weight-medium);">
+                                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                            </div>
+                            <div style="display: grid; gap: var(--space-2);">
+                                ${calendarGrid}
+                            </div>
+                            ${expandedDetails}
+                        </div>
+                    </div>
+                `;
+            },
+
+            buildMultiSiteCalendar: function (sites, today) {
+                const days = [];
+                const schedules = DataStore.getSchedules ? DataStore.getSchedules() : {};
+                const guards = DataStore.getGuards();
+
+                // 4 weeks back to 1 week ahead
+                const startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 28);
+                const endDate = new Date(today);
+                endDate.setDate(endDate.getDate() + 7);
+
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const dateStr = Utils.toISODate(d);
+                    const isToday = dateStr === Utils.toISODate(today);
+
+                    // Count open slots across all sites
+                    let openCount = 0;
+                    let coveredCount = 0;
+                    const siteDetails = [];
+
+                    sites.forEach(site => {
+                        const siteShifts = [];
+                        Object.values(schedules).forEach(weekShifts => {
+                            weekShifts.forEach(s => {
+                                if (s.siteId === site.id && s.date === dateStr) {
+                                    siteShifts.push(s);
+                                }
+                            });
+                        });
+
+                        let siteOpen = 0;
+                        let siteCovered = 0;
+                        siteShifts.forEach(s => {
+                            if (s.guardId) {
+                                siteCovered++;
+                                coveredCount++;
+                            } else {
+                                siteOpen++;
+                                openCount++;
+                            }
+                        });
+
+                        if (siteShifts.length > 0) {
+                            siteDetails.push({
+                                siteId: site.id,
+                                siteName: site.name,
+                                shifts: siteShifts.map(s => ({
+                                    guardId: s.guardId,
+                                    guardName: s.guardId ? (guards.find(g => g.id === s.guardId)?.name || 'Unknown') : null,
+                                    startTime: s.startTime,
+                                    endTime: s.endTime,
+                                    shiftLabel: s.shiftLabel
+                                })),
+                                openCount: siteOpen,
+                                coveredCount: siteCovered
+                            });
+                        }
+                    });
+
+                    days.push({
+                        date: dateStr,
+                        dayOfWeek: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                        dayOfMonth: d.getDate(),
+                        isToday,
+                        openCount,
+                        coveredCount,
+                        siteDetails
+                    });
+                }
+
+                return days;
+            },
+
+            toggleCalendarDay: function (dateStr) {
+                if (this.expandedDays.has(dateStr)) {
+                    this.expandedDays.delete(dateStr);
+                } else {
+                    this.expandedDays.clear();
+                    this.expandedDays.add(dateStr);
+                }
+                this.switchTab('calendar');
+            },
+
+            renderExpandedCalendarDay: function (calendarDays) {
+                if (this.expandedDays.size === 0) return '';
+
+                const expandedDate = Array.from(this.expandedDays)[0];
+                const day = calendarDays.find(d => d.date === expandedDate);
+                if (!day) return '';
+
+                const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long', month: 'long', day: 'numeric'
+                });
+
+                if (day.siteDetails.length === 0) {
+                    return `
+                        <div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                                <h4 style="margin: 0;">${dateLabel}</h4>
+                                <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.toggleCalendarDay('${day.date}')">✕</button>
+                            </div>
+                            <p class="text-muted">No scheduled coverage for this day.</p>
+                        </div>
+                    `;
+                }
+
+                const sitesHtml = day.siteDetails.map(site => `
+                    <div style="margin-bottom: var(--space-3);">
+                        <div style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); display: flex; justify-content: space-between; align-items: center;">
+                            <span>${Utils.escapeHtml(site.siteName)}</span>
+                            ${site.openCount > 0 ? `<span class="badge badge-danger">${site.openCount} Open</span>` : '<span class="badge badge-success">Covered</span>'}
+                        </div>
+                        ${site.shifts.map(s => `
+                            <div style="padding: var(--space-2); background: ${s.guardId ? 'var(--color-surface-elevated)' : 'rgba(239,68,68,0.1)'}; border-radius: var(--radius-sm); margin-bottom: var(--space-1); display: flex; justify-content: space-between; align-items: center;">
+                                <span>${s.startTime || '??:??'} – ${s.endTime || '??:??'}</span>
+                                <span style="${!s.guardId ? 'color: var(--color-danger); font-weight: bold;' : ''}">${s.guardName || 'OPEN'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `).join('');
+
+                return `
+                    <div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                            <h4 style="margin: 0;">${dateLabel}</h4>
+                            <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.toggleCalendarDay('${day.date}')">✕</button>
+                        </div>
+                        ${sitesHtml}
+                    </div>
+                `;
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // WRITE-UP TAB
+            // ═══════════════════════════════════════════════════════════════
+
+            writeUpState: {
+                step: 'list', // 'list', 'form'
+                selectedSiteId: null,
+                selectedGuardId: null,
+                selectedInfractions: [],
+                incidentDate: null,
+                notes: ''
+            },
+
+            renderWriteUpTab: function () {
+                if (this.writeUpState.step === 'form') {
+                    return this.renderWriteUpForm();
+                }
+                return this.renderWriteUpList();
+            },
+
+            renderWriteUpList: function () {
+                const writeups = this.getWriteUps();
+                const myWriteups = writeups.filter(w => w.createdByPin === this.currentPin);
+
+                const recentHtml = myWriteups.length === 0 
+                    ? '<p class="text-muted text-center" style="padding: var(--space-4);">No write-ups submitted yet.</p>'
+                    : myWriteups.slice(0, 10).map(w => {
+                        const guard = DataStore.getGuards().find(g => g.id === w.guardId);
+                        const site = DataStore.getSites().find(s => s.id === w.siteId);
+                        return `
+                            <div class="writeup-submission-card">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: var(--font-weight-semibold);">${Utils.escapeHtml(guard?.name || w.guardName || 'Unknown Guard')}</div>
+                                        <div class="text-sm text-muted">${Utils.escapeHtml(site?.name || 'Unknown Site')}</div>
+                                    </div>
+                                    <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); SupervisorPortalModule.viewWriteUp('${w.id}')" title="View">👁️</button>
+                                        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); SupervisorPortalModule.printWriteUp(SupervisorPortalModule.getWriteUps().find(x => x.id === '${w.id}'))" title="Print">🖨️</button>
+                                    </div>
+                                </div>
+                                <div class="text-sm mt-2">
+                                    <strong>Infractions:</strong> ${w.infractions.join(', ')}
+                                </div>
+                                <div class="text-xs text-muted mt-1">
+                                    Incident: ${new Date(w.incidentDate).toLocaleDateString()} · Submitted: ${new Date(w.createdAt).toLocaleDateString()}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                return `
+                    <div style="margin-bottom: var(--space-4);">
+                        <button class="btn btn-primary" style="width: 100%;" onclick="SupervisorPortalModule.startWriteUp()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: var(--space-2);">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            New Write-Up
+                        </button>
+                    </div>
+
+                    <h3 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">My Recent Submissions</h3>
+                    ${recentHtml}
+                `;
+            },
+
+            startWriteUp: function () {
+                this.writeUpState = {
+                    step: 'form',
+                    selectedSiteId: null,
+                    selectedGuardId: null,
+                    selectedInfractions: [],
+                    incidentDate: Utils.toISODate(new Date()),
+                    notes: ''
+                };
+                this.switchTab('writeup');
+            },
+
+            renderWriteUpForm: function () {
+                const sites = DataStore.getSites().filter(s => s.status !== 'terminated').sort((a, b) => a.name.localeCompare(b.name));
+                const guards = DataStore.getGuards().filter(g => g.status === 'active').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                const infractions = [
+                    'Late Arrival',
+                    'Early Departure',
+                    'No Call/No Show',
+                    'Uniform Violation',
+                    'Sleeping on Post',
+                    'Unauthorized Break',
+                    'Cell Phone Use',
+                    'Insubordination',
+                    'Abandonment of Post',
+                    'Safety Violation',
+                    'Policy Violation',
+                    'Other'
+                ];
+
+                const sitesOptions = sites.map(s => `<option value="${s.id}" ${this.writeUpState.selectedSiteId === s.id ? 'selected' : ''}>${Utils.escapeHtml(s.name)}</option>`).join('');
+                const guardsOptions = guards.map(g => `<option value="${g.id}" ${this.writeUpState.selectedGuardId === g.id ? 'selected' : ''}>${Utils.escapeHtml(g.name)}</option>`).join('');
+
+                const infractionsHtml = infractions.map(inf => {
+                    const isSelected = this.writeUpState.selectedInfractions.includes(inf);
+                    return `
+                        <div class="writeup-infraction-item ${isSelected ? 'selected' : ''}" onclick="SupervisorPortalModule.toggleInfraction('${inf}')">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} style="pointer-events: none;">
+                            <span>${inf}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div style="margin-bottom: var(--space-3);">
+                        <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.cancelWriteUp()">
+                            ← Back to List
+                        </button>
+                    </div>
+
+                    <h3 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4);">New Write-Up</h3>
+
+                    <div class="writeup-form-section">
+                        <h4>1. Select Site</h4>
+                        <select class="form-input" id="writeup-site" onchange="SupervisorPortalModule.updateWriteUpField('selectedSiteId', this.value)">
+                            <option value="">-- Select Site --</option>
+                            ${sitesOptions}
+                        </select>
+                    </div>
+
+                    <div class="writeup-form-section">
+                        <h4>2. Select Guard</h4>
+                        <select class="form-input" id="writeup-guard" onchange="SupervisorPortalModule.updateWriteUpField('selectedGuardId', this.value)">
+                            <option value="">-- Select Guard --</option>
+                            ${guardsOptions}
+                        </select>
+                    </div>
+
+                    <div class="writeup-form-section">
+                        <h4>3. Incident Date</h4>
+                        <input type="date" class="form-input" id="writeup-date" value="${this.writeUpState.incidentDate}" onchange="SupervisorPortalModule.updateWriteUpField('incidentDate', this.value)">
+                    </div>
+
+                    <div class="writeup-form-section">
+                        <h4>4. Infractions (select all that apply)</h4>
+                        <div class="writeup-infractions-list">
+                            ${infractionsHtml}
+                        </div>
+                    </div>
+
+                    <div class="writeup-form-section">
+                        <h4>5. Notes / Details</h4>
+                        <textarea class="form-input" id="writeup-notes" rows="4" placeholder="Describe the incident in detail..." onchange="SupervisorPortalModule.updateWriteUpField('notes', this.value)">${Utils.escapeHtml(this.writeUpState.notes)}</textarea>
+                    </div>
+
+                    <div style="display: flex; gap: var(--space-3); margin-top: var(--space-4);">
+                        <button class="btn btn-secondary" style="flex: 1;" onclick="SupervisorPortalModule.cancelWriteUp()">Cancel</button>
+                        <button class="btn btn-primary" style="flex: 1;" onclick="SupervisorPortalModule.submitWriteUp()">Submit Write-Up</button>
+                    </div>
+                `;
+            },
+
+            updateWriteUpField: function (field, value) {
+                this.writeUpState[field] = value;
+            },
+
+            toggleInfraction: function (infraction) {
+                const idx = this.writeUpState.selectedInfractions.indexOf(infraction);
+                if (idx >= 0) {
+                    this.writeUpState.selectedInfractions.splice(idx, 1);
+                } else {
+                    this.writeUpState.selectedInfractions.push(infraction);
+                }
+                this.switchTab('writeup');
+            },
+
+            cancelWriteUp: function () {
+                this.writeUpState.step = 'list';
+                this.switchTab('writeup');
+            },
+
+            submitWriteUp: function () {
+                // Validate
+                if (!this.writeUpState.selectedSiteId) {
+                    UI.toast('Missing Site', 'Please select a site.', 'error');
+                    return;
+                }
+                if (!this.writeUpState.selectedGuardId) {
+                    UI.toast('Missing Guard', 'Please select a guard.', 'error');
+                    return;
+                }
+                if (!this.writeUpState.incidentDate) {
+                    UI.toast('Missing Date', 'Please enter the incident date.', 'error');
+                    return;
+                }
+                if (this.writeUpState.selectedInfractions.length === 0) {
+                    UI.toast('Missing Infractions', 'Please select at least one infraction.', 'error');
+                    return;
+                }
+
+                const guard = DataStore.getGuards().find(g => g.id === this.writeUpState.selectedGuardId);
+                const site = DataStore.getSites().find(s => s.id === this.writeUpState.selectedSiteId);
+
+                const writeup = {
+                    id: Utils.generateId('writeup-'),
+                    createdAt: new Date().toISOString(),
+                    createdByPin: this.currentPin,
+                    guardId: this.writeUpState.selectedGuardId,
+                    guardName: guard?.name || 'Unknown',
+                    siteId: this.writeUpState.selectedSiteId,
+                    siteName: site?.name || 'Unknown',
+                    incidentDate: this.writeUpState.incidentDate,
+                    infractions: [...this.writeUpState.selectedInfractions],
+                    notes: this.writeUpState.notes,
+                    status: 'submitted'
+                };
+
+                this.saveWriteUp(writeup);
+                this.logAccess('SUBMIT_WRITEUP');
+
+                // Offer to print
+                if (confirm('Write-up submitted successfully. Would you like to print it now?')) {
+                    this.printWriteUp(writeup);
+                }
+                
+                this.writeUpState.step = 'list';
+                this.switchTab('writeup');
+            },
+
+            viewWriteUp: function (writeupId) {
+                const writeup = this.getWriteUps().find(w => w.id === writeupId);
+                if (!writeup) {
+                    UI.toast('Not Found', 'Write-up not found.', 'error');
+                    return;
+                }
+
+                const content = `
+                    <div style="max-width: 600px;">
+                        <div class="form-group">
+                            <label class="form-label">Guard</label>
+                            <p>${Utils.escapeHtml(writeup.guardName)}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Site</label>
+                            <p>${Utils.escapeHtml(writeup.siteName)}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Incident Date</label>
+                            <p>${new Date(writeup.incidentDate).toLocaleDateString()}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Infractions</label>
+                            <p>${writeup.infractions.map(i => `<span class="badge badge-warning" style="margin-right: 4px;">${Utils.escapeHtml(i)}</span>`).join('')}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Notes</label>
+                            <p style="white-space: pre-wrap;">${Utils.escapeHtml(writeup.notes || 'None')}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Submitted</label>
+                            <p>${new Date(writeup.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <p><span class="badge badge-info">${writeup.status}</span></p>
+                        </div>
+                    </div>
+                `;
+
+                UI.openModal('Write-Up Details', content, `
+                    <button class="btn btn-secondary" onclick="UI.closeModal()">Close</button>
+                    <button class="btn btn-primary" onclick="SupervisorPortalModule.printWriteUp(SupervisorPortalModule.getWriteUps().find(w => w.id === '${writeup.id}'))">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Print
+                    </button>
+                `);
+            },
+
+            printWriteUp: function (writeup) {
+                if (!writeup) return;
+
+                const printHtml = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Employee Write-Up - ${Utils.escapeHtml(writeup.guardName)}</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+                            h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                            .header { text-align: center; margin-bottom: 30px; }
+                            .section { margin-bottom: 20px; }
+                            .label { font-weight: bold; color: #555; margin-bottom: 5px; }
+                            .value { margin-left: 0; padding: 8px; background: #f5f5f5; border-radius: 4px; }
+                            .infractions { display: flex; flex-wrap: wrap; gap: 8px; }
+                            .infraction-badge { background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 4px; font-size: 14px; }
+                            .signature-line { margin-top: 60px; display: flex; justify-content: space-between; }
+                            .signature-box { width: 45%; }
+                            .signature-box .line { border-bottom: 1px solid #333; height: 40px; margin-bottom: 5px; }
+                            .signature-box .text { font-size: 12px; color: #666; }
+                            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #999; }
+                            @media print { body { padding: 20px; } }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>EMPLOYEE WRITE-UP NOTICE</h1>
+                            <p>Newark Security Operations</p>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Employee Name</div>
+                            <div class="value">${Utils.escapeHtml(writeup.guardName)}</div>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Site/Location</div>
+                            <div class="value">${Utils.escapeHtml(writeup.siteName)}</div>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Date of Incident</div>
+                            <div class="value">${new Date(writeup.incidentDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Violation(s)</div>
+                            <div class="infractions">
+                                ${writeup.infractions.map(i => `<span class="infraction-badge">${Utils.escapeHtml(i)}</span>`).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Details / Description</div>
+                            <div class="value" style="min-height: 100px; white-space: pre-wrap;">${Utils.escapeHtml(writeup.notes || 'See verbal discussion.')}</div>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="label">Corrective Action Required</div>
+                            <div class="value" style="min-height: 60px;">
+                                Employee is expected to correct the above behavior immediately. Future violations may result in further disciplinary action up to and including termination.
+                            </div>
+                        </div>
+                        
+                        <div class="signature-line">
+                            <div class="signature-box">
+                                <div class="line"></div>
+                                <div class="text">Employee Signature / Date</div>
+                            </div>
+                            <div class="signature-box">
+                                <div class="line"></div>
+                                <div class="text">Supervisor Signature / Date</div>
+                            </div>
+                        </div>
+                        
+                        <div class="footer">
+                            <p>Write-Up ID: ${writeup.id} | Generated: ${new Date().toLocaleString()}</p>
+                            <p>This document is confidential and intended for internal use only.</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(printHtml);
+                    printWindow.document.close();
+                    printWindow.print();
+                } else {
+                    UI.toast('Popup Blocked', 'Please allow popups to print.', 'error');
+                }
+            },
+
+            // Admin function to view all write-ups
+            openAdminWriteUpsList: function () {
+                const writeups = this.getWriteUps();
+                
+                if (writeups.length === 0) {
+                    UI.openModal('Submitted Write-Ups', '<p class="text-muted text-center" style="padding: var(--space-4);">No write-ups have been submitted yet.</p>', '<button class="btn btn-secondary" onclick="UI.closeModal()">Close</button>');
+                    return;
+                }
+
+                const listHtml = writeups.slice(0, 50).map(w => `
+                    <div style="padding: var(--space-3); border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: var(--font-weight-semibold);">${Utils.escapeHtml(w.guardName)}</div>
+                            <div class="text-sm text-muted">${Utils.escapeHtml(w.siteName)} · ${new Date(w.incidentDate).toLocaleDateString()}</div>
+                            <div class="text-xs text-muted">Infractions: ${w.infractions.join(', ')}</div>
+                        </div>
+                        <div style="display: flex; gap: var(--space-2);">
+                            <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.viewWriteUp('${w.id}')" title="View">👁️</button>
+                            <button class="btn btn-ghost btn-sm" onclick="SupervisorPortalModule.printWriteUp(SupervisorPortalModule.getWriteUps().find(x => x.id === '${w.id}'))" title="Print">🖨️</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                UI.openModal('Submitted Write-Ups', `
+                    <p class="text-sm text-muted mb-3">Showing ${Math.min(writeups.length, 50)} of ${writeups.length} write-ups (newest first)</p>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        ${listHtml}
+                    </div>
+                `, '<button class="btn btn-secondary" onclick="UI.closeModal()">Close</button>');
+            },
+
+            // ═══════════════════════════════════════════════════════════════
+            // WRITE-UPS STORAGE
+            // ═══════════════════════════════════════════════════════════════
+
+            getWriteUps: function () {
+                try {
+                    return JSON.parse(localStorage.getItem(this.WRITEUPS_KEY) || '[]');
+                } catch (e) {
+                    return [];
+                }
+            },
+
+            saveWriteUp: function (writeup) {
+                const writeups = this.getWriteUps();
+                writeups.unshift(writeup); // Add to beginning
+                localStorage.setItem(this.WRITEUPS_KEY, JSON.stringify(writeups));
             }
         };
 
@@ -30132,12 +32675,14 @@ RESPONSE GUIDELINES:
             
             _saveToLocalStorage: function() {
                 try {
-                    // Only save non-Firestore entries (local imports)
+                    // Persist any SOPs that are not explicitly cloud-only
+                    // (imports + local edits + resilience fallback copies)
                     const toSave = {};
                     Object.keys(this._cache).forEach(siteId => {
-                        if (this._cache[siteId]._source === 'import') {
-                            toSave[siteId] = this._cache[siteId];
-                        }
+                        const entry = this._cache[siteId];
+                        if (!entry) return;
+                        // Do not persist "firestore-only" records differently; we still keep a local fallback copy
+                        toSave[siteId] = entry;
                     });
                     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(toSave));
                 } catch (e) {
@@ -30352,27 +32897,44 @@ RESPONSE GUIDELINES:
                 console.log('[SOP] Cleared imported SOPs');
             },
 
-            // Save SOP to Firestore and update cache
+            // Save SOP (Firestore when available, otherwise localStorage) and update cache
             async saveSOP(siteId, sopData) {
+                const dataToSave = {
+                    ...sopData,
+                    siteId: siteId,
+                    updatedAt: new Date().toISOString()
+                };
+
+                // Default to local when cloud is not available
+                this._lastSaveMode = 'local';
+
                 if (!window.FirestoreDB?.enabled) {
-                    UI.notify('Firestore not enabled. Changes not saved to cloud.', 'warning');
-                    return false;
-                }
-                try {
-                    const dataToSave = {
-                        ...sopData,
-                        siteId: siteId,
-                        updatedAt: new Date().toISOString()
-                    };
-                    await FirestoreDB.save('sops', siteId, dataToSave);
+                    dataToSave._source = 'local';
                     this._cache[siteId] = dataToSave;
-                    console.log(`[SOP] Saved SOP for ${siteId}`);
+                    this._saveToLocalStorage();
+                    console.log(`[SOP] Saved SOP locally for ${siteId}`);
+                    return true;
+                }
+
+                try {
+                    await FirestoreDB.save('sops', siteId, dataToSave);
+                    dataToSave._source = 'firestore';
+                    this._cache[siteId] = dataToSave;
+                    this._lastSaveMode = 'firestore';
+                    // Keep a local copy as a resilience fallback
+                    this._saveToLocalStorage();
+                    console.log(`[SOP] Saved SOP to Firestore for ${siteId}`);
                     return true;
                 } catch (error) {
-                    console.error('[SOP] Save failed:', error);
-                    return false;
+                    console.error('[SOP] Save failed (Firestore). Falling back to localStorage:', error);
+                    dataToSave._source = 'local';
+                    this._cache[siteId] = dataToSave;
+                    this._lastSaveMode = 'local-fallback';
+                    this._saveToLocalStorage();
+                    return true;
                 }
             },
+
 
             // Open editor modal
             openEditor: function(siteId) {
@@ -30576,7 +33138,14 @@ RESPONSE GUIDELINES:
                 const success = await this.saveSOP(siteId, sopData);
                 
                 if (success) {
-                    UI.notify('SOP saved successfully!', 'success');
+                    const mode = this._lastSaveMode || 'local';
+                    if (mode === 'firestore') {
+                        UI.notify('SOP saved to cloud.', 'success');
+                    } else if (mode === 'local-fallback') {
+                        UI.notify('Cloud save failed. SOP saved locally.', 'warning');
+                    } else {
+                        UI.notify('SOP saved locally (cloud sync not enabled).', 'success');
+                    }
                     UI.closeModal();
                     // Refresh the site view
                     SitesModule.viewSite(siteId);
@@ -41738,6 +44307,8 @@ Phase 2 - Follow-up
                 ExportModule.init();
                 ClientPortalModule.init();
                 ClientPortalModule.updatePinsList();
+                SupervisorPortalModule.init();
+                SupervisorPortalModule.updatePinsList();
                 CalloffsModule.init();
                 SitesModule.init();
                 ContactsModule.init();
@@ -43373,7 +45944,7 @@ Phase 2 - Follow-up
             window.BulkScheduler = BulkScheduler;
         })();
 
-        console.log('🚀 Sentinel Ops v6.19.4 loaded');
+        console.log('🚀 Sentinel Ops v6.21.1 loaded');
     </script>
 </body>
 
